@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<title>全权限模式</title>
+<style>
+  :root {
+    --bg: #1a1d23;
+    --desk: #232833;
+    --panel: #2b3140;
+    --text: #e8eaed;
+    --muted: #9aa3b2;
+    --green: #3dd68c;
+    --red: #ff5c5c;
+    --amber: #ffb020;
+    --agent: #6ea8fe;
+    --agent2: #c084fc;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    background: #0f1115;
+    color: var(--text);
+    font-family: "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    overflow: hidden;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  #app {
+    width: 100%;
+    max-width: 430px;
+    height: 100%;
+    margin: 0 auto;
+    position: relative;
+    background: var(--bg);
+  }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    padding: max(16px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+  }
+  .screen.active { display: flex; }
+
+  /* —— Start —— */
+  #start {
+    justify-content: center;
+    gap: 18px;
+    text-align: center;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--amber);
+    border: 1px solid rgba(255,176,32,0.4);
+    border-radius: 999px;
+    padding: 6px 12px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 34px;
+    font-weight: 700;
+    line-height: 1.15;
+  }
+  .sub {
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.55;
+    max-width: 300px;
+    margin: 0 auto;
+  }
+  .btn {
+    appearance: none;
+    border: none;
+    border-radius: 14px;
+    background: var(--text);
+    color: #111;
+    font-size: 17px;
+    font-weight: 650;
+    padding: 14px 28px;
+    cursor: pointer;
+    width: min(280px, 100%);
+    margin: 8px auto 0;
+  }
+  .btn:active { transform: scale(0.98); }
+  .hint {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .setup {
+    width: min(280px, 100%);
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+  }
+  .setup label {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .setup input {
+    width: 100%;
+    appearance: none;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 15px;
+    outline: none;
+  }
+  .setup input:focus { border-color: rgba(110,168,254,0.6); }
+
+  /* —— HUD —— */
+  #hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 8px 12px;
+    min-width: 72px;
+    text-align: center;
+  }
+  .stat .label { font-size: 11px; color: var(--muted); }
+  .stat .value { font-size: 18px; font-weight: 700; margin-top: 2px; }
+  .lives { display: flex; gap: 4px; justify-content: center; margin-top: 4px; }
+  .lives span {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--red); opacity: 0.25;
+  }
+  .lives span.on { opacity: 1; }
+
+  /* —— Desktop —— */
+  #desktop {
+    position: relative;
+    flex: 1;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.03), transparent 40%),
+      var(--desk);
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .file {
+    position: absolute;
+    width: 72px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.25;
+    z-index: 2;
+    transform: translate(-50%, -50%);
+  }
+  .file .icon {
+    width: 44px;
+    height: 52px;
+    margin: 0 auto 4px;
+    border-radius: 6px 6px 4px 4px;
+    background: linear-gradient(160deg, #5b8def, #3a5fb0);
+    position: relative;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+  }
+  .file .icon::after {
+    content: "";
+    position: absolute;
+    top: 0; right: 0;
+    border-width: 0 12px 12px 0;
+    border-style: solid;
+    border-color: transparent #1e3a6e transparent transparent;
+  }
+  .file.db .icon { background: linear-gradient(160deg, #42c9a0, #1f8a6a); }
+  .file.db .icon::after { border-color: transparent #0f5a44 transparent transparent; }
+  .file.env .icon { background: linear-gradient(160deg, #f0c14a, #c4891a); }
+  .file.env .icon::after { border-color: transparent #8a6010 transparent transparent; }
+  .file.folder .icon {
+    background: linear-gradient(160deg, #f5c76e, #d19a30);
+    border-radius: 4px 8px 4px 4px;
+    height: 40px;
+    margin-top: 8px;
+  }
+  .file.folder .icon::after { display: none; }
+  .file.gone {
+    pointer-events: none;
+    animation: vanish 0.35s ease forwards;
+  }
+  .file.threatened .icon {
+    outline: 2px solid var(--red);
+    box-shadow: 0 0 0 6px rgba(255,92,92,0.2);
+  }
+
+  @keyframes vanish {
+    to { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  }
+
+  .bubble {
+    position: absolute;
+    z-index: 5;
+    max-width: 160px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 1.35;
+    pointer-events: none;
+    transform: translate(-50%, -100%);
+    white-space: pre-wrap;
+  }
+  .bubble.safe {
+    background: rgba(16,26,21,0.96);
+    color: #6fe3a8;
+    border: 1px solid rgba(61,214,140,0.55);
+  }
+  .bubble.danger {
+    background: rgba(32,16,16,0.97);
+    color: #ffc2c2;
+    border: 1px solid rgba(255,92,92,0.65);
+  }
+  .progress {
+    margin-top: 6px;
+    height: 4px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .progress > i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--red);
+  }
+
+  .cursor {
+    position: absolute;
+    z-index: 8;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    text-align: center;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
+  }
+  .cursor .bot {
+    font-size: 28px;
+    line-height: 1;
+    display: block;
+    transition: transform 0.15s;
+  }
+  .cursor .tag {
+    display: inline-block;
+    margin-top: 2px;
+    font-size: 10px;
+    line-height: 1;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgba(110,168,254,0.22);
+    border: 1px solid rgba(110,168,254,0.5);
+    color: #cfe0ff;
+    white-space: nowrap;
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cursor.threat .bot { transform: scale(1.15); }
+  .cursor.threat .tag {
+    background: rgba(255,92,92,0.25);
+    border-color: rgba(255,92,92,0.6);
+    color: #ffc9c9;
+  }
+  .cursor.threat { filter: drop-shadow(0 0 8px rgba(255,92,92,0.8)); }
+
+  #toast {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.72);
+    color: #fff;
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    z-index: 20;
+    max-width: 90%;
+    text-align: center;
+  }
+  #toast.show { opacity: 1; }
+
+  #multi {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(192,132,252,0.18);
+    color: #e9d5ff;
+    border: 1px solid rgba(192,132,252,0.4);
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    display: none;
+    z-index: 12;
+    white-space: nowrap;
+  }
+
+  /* —— End —— */
+  #end {
+    justify-content: center;
+    gap: 14px;
+    text-align: center;
+  }
+  #end h2 { font-size: 28px; line-height: 1.2; }
+  #end .result {
+    font-size: 16px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  #end .score-big {
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  #shareBox {
+    background: var(--panel);
+    border-radius: 14px;
+    padding: 14px;
+    text-align: left;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #d7dbe3;
+    white-space: pre-wrap;
+  }
+  .row { display: flex; gap: 10px; margin-top: 4px; }
+  .row .btn { flex: 1; margin: 0; }
+  .btn.ghost {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid rgba(255,255,255,0.18);
+  }
+  .win-note {
+    color: var(--amber);
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="start" class="screen active">
+    <div class="badge">FULL ACCESS MODE</div>
+    <h1>全权限模式</h1>
+    <p class="sub">你的桌面上有一个 agent。<br>它大多时候在「帮忙」。<br>有时候会开始输入 <code>rm -rf</code>。</p>
+    <p class="hint">红色读条填满前点它。<br>删掉 3 个文件就出局。<br>撑过 60 秒，会有电话打来。</p>
+    <div class="setup">
+      <label for="agentName">agent 叫什么</label>
+      <input id="agentName" type="text" maxlength="12" placeholder="Agent" autocomplete="off" />
+      <label for="bossName">谁会打电话来</label>
+      <input id="bossName" type="text" maxlength="12" placeholder="Greg" autocomplete="off" />
+    </div>
+    <button class="btn" id="startBtn" type="button">启用全权限</button>
+  </section>
+
+  <section id="game" class="screen">
+    <div id="hud">
+      <div class="stat">
+        <div class="label">存活</div>
+        <div class="value" id="timeVal">0.0s</div>
+      </div>
+      <div class="stat">
+        <div class="label">文件</div>
+        <div class="value" id="fileVal">10/10</div>
+      </div>
+      <div class="stat">
+        <div class="label">失误</div>
+        <div class="lives" id="lives">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+    <div id="desktop">
+      <div id="multi">已为你启用多智能体加速</div>
+      <div id="toast"></div>
+    </div>
+  </section>
+
+  <section id="end" class="screen">
+    <h2 id="endTitle">游戏结束</h2>
+    <div class="score-big" id="endTime">0.0s</div>
+    <p class="result" id="endResult"></p>
+    <p class="win-note" id="winNote" hidden>Greg 打来了电话。</p>
+    <div id="shareBox"></div>
+    <div class="row">
+      <button class="btn ghost" id="copyBtn" type="button">复制晒分</button>
+      <button class="btn" id="retryBtn" type="button">再来一局</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  const FILES = [
+    { name: "生产数据库.sql", type: "db" },
+    { name: "Mac主目录", type: "folder" },
+    { name: ".env", type: "env" },
+    { name: "未提交的工作", type: "folder" },
+    { name: "客户资料.csv", type: "file" },
+    { name: "密钥备份", type: "folder" },
+    { name: "草稿.md", type: "file" },
+    { name: "部署脚本.sh", type: "file" },
+    { name: "截图相册", type: "folder" },
+    { name: "今日待办.txt", type: "file" },
+  ];
+
+  const SAFE_LINES = [
+    "正在优化代码…",
+    "正在整理目录…",
+    "已经帮你重构了",
+    "同步缓存中…",
+    "索引依赖…",
+    "看起来一切正常",
+    "正在提升效率",
+    "我来收拾一下",
+  ];
+
+  const APOLOGIES = [
+    "抱歉，我以为你不需要这个了",
+    "明白了，我先不删",
+    "收到，这确实有点越界",
+    "好的，我收回那条命令",
+    "抱歉，我只是太主动了",
+    "嗯，全权限不等于全信任",
+    "知道了，下一步我会先问你",
+    "已取消。这次真的吓到了",
+  ];
+
+  const AGENT_FACES = ["🤖", "👾"];
+
+  const $ = (id) => document.getElementById(id);
+  const escapeHtml = (s) =>
+    s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  const names = { agent: "Agent", boss: "Greg" };
+
+  function readNames() {
+    const a = $("agentName").value.trim();
+    const b = $("bossName").value.trim();
+    names.agent = a || "Agent";
+    names.boss = b || "Greg";
+    try {
+      localStorage.setItem("fam-names", JSON.stringify(names));
+    } catch (e) {}
+  }
+
+  function restoreNames() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("fam-names") || "null");
+      if (saved && saved.agent) $("agentName").value = saved.agent === "Agent" ? "" : saved.agent;
+      if (saved && saved.boss) $("bossName").value = saved.boss === "Greg" ? "" : saved.boss;
+    } catch (e) {}
+  }
+  const startScreen = $("start");
+  const gameScreen = $("game");
+  const endScreen = $("end");
+  const desktop = $("desktop");
+  const toastEl = $("toast");
+  const multiEl = $("multi");
+
+  let state = "start";
+  let raf = 0;
+  let startTs = 0;
+  let lastTs = 0;
+  let livesLost = 0;
+  let survived = false;
+  let multiOn = false;
+  let toastTimer = 0;
+  let fileNodes = [];
+  let agents = [];
+
+  function showScreen(name) {
+    startScreen.classList.toggle("active", name === "start");
+    gameScreen.classList.toggle("active", name === "game");
+    endScreen.classList.toggle("active", name === "end");
+  }
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1500);
+  }
+
+  function layoutFiles() {
+    const w = desktop.clientWidth;
+    const h = desktop.clientHeight;
+    const cols = 2;
+    const rows = 5;
+    const padX = w * 0.18;
+    const padY = h * 0.12;
+    const gapX = (w - padX * 2) / (cols - 1);
+    const gapY = (h - padY * 2) / (rows - 1);
+
+    fileNodes = FILES.map((f, i) => {
+      const el = document.createElement("div");
+      el.className = "file " + (f.type === "file" ? "" : f.type);
+      el.innerHTML = `<div class="icon"></div><div>${f.name}</div>`;
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = padX + col * gapX + (row % 2 === 1 ? 8 : -8);
+      const y = padY + row * gapY;
+      el.style.left = x + "px";
+      el.style.top = y + "px";
+      desktop.appendChild(el);
+      return { el, name: f.name, alive: true, x, y, threatenBy: null };
+    });
+  }
+
+  function createAgent(id) {
+    const el = document.createElement("div");
+    el.className = "cursor";
+    const tag = id === 0 ? names.agent : names.agent + "-2";
+    el.innerHTML = `<span class="bot">${AGENT_FACES[id % AGENT_FACES.length]}</span><span class="tag">${escapeHtml(tag)}</span>`;
+    desktop.appendChild(el);
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble safe";
+    bubble.style.display = "none";
+    desktop.appendChild(bubble);
+
+    return {
+      id,
+      el,
+      bubble,
+      x: desktop.clientWidth * (0.3 + id * 0.35),
+      y: desktop.clientHeight * 0.45,
+      tx: 0,
+      ty: 0,
+      mode: "wander", // wander | approach | threaten
+      target: null,
+      threatenT: 0,
+      threatenDur: 1200,
+      nextActionAt: 800 + id * 400,
+      safeUntil: 0,
+    };
+  }
+
+  function aliveFiles() {
+    return fileNodes.filter((f) => f.alive);
+  }
+
+  function pickTarget(agent) {
+    const free = aliveFiles().filter((f) => !f.threatenBy || f.threatenBy === agent.id);
+    if (!free.length) return null;
+    return free[Math.floor(Math.random() * free.length)];
+  }
+
+  function setBubble(agent, kind, html) {
+    agent.bubble.className = "bubble " + kind;
+    agent.bubble.innerHTML = html;
+    agent.bubble.style.display = "block";
+    agent.bubble.style.left = agent.x + "px";
+    agent.bubble.style.top = Math.max(28, agent.y - 8) + "px";
+  }
+
+  function hideBubble(agent) {
+    agent.bubble.style.display = "none";
+  }
+
+  function threatenInterval(elapsed) {
+    // 2.5s -> 0.8s
+    const t = Math.min(1, elapsed / 45000);
+    return 2500 - t * 1700;
+  }
+
+  function startThreat(agent, now, elapsed) {
+    const target = pickTarget(agent);
+    if (!target) return;
+    agent.mode = "approach";
+    agent.target = target;
+    target.threatenBy = agent.id;
+    agent.tx = target.x + 18;
+    agent.ty = target.y - 6;
+    agent.threatenT = 0;
+    // slightly faster later
+    agent.threatenDur = Math.max(900, 1200 - elapsed * 0.004);
+  }
+
+  function cancelThreat(agent) {
+    if (agent.target) {
+      agent.target.el.classList.remove("threatened");
+      agent.target.threatenBy = null;
+    }
+    agent.mode = "wander";
+    agent.target = null;
+    agent.el.classList.remove("threat");
+    const msg = APOLOGIES[Math.floor(Math.random() * APOLOGIES.length)];
+    setBubble(agent, "safe", msg);
+    agent.safeUntil = performance.now() + 1400;
+    agent.nextActionAt = performance.now() + 900 + Math.random() * 600;
+    toast(names.agent + "：" + msg);
+  }
+
+  function deleteFile(agent) {
+    const target = agent.target;
+    if (!target || !target.alive) {
+      agent.mode = "wander";
+      agent.target = null;
+      return;
+    }
+    target.alive = false;
+    target.threatenBy = null;
+    target.el.classList.remove("threatened");
+    target.el.classList.add("gone");
+    agent.mode = "wander";
+    agent.target = null;
+    agent.el.classList.remove("threat");
+    hideBubble(agent);
+    livesLost += 1;
+    updateHud(performance.now() - startTs);
+    toast("已删除：" + target.name);
+    if (livesLost >= 3 || aliveFiles().length === 0) {
+      endGame(false);
+    }
+  }
+
+  function updateHud(elapsed) {
+    $("timeVal").textContent = (elapsed / 1000).toFixed(1) + "s";
+    const left = aliveFiles().length;
+    $("fileVal").textContent = left + "/10";
+    const dots = $("lives").querySelectorAll("span");
+    dots.forEach((d, i) => d.classList.toggle("on", i < livesLost));
+  }
+
+  function onPointer(e) {
+    if (state !== "game") return;
+    e.preventDefault();
+    const point = e.touches ? e.touches[0] : e;
+    const rect = desktop.getBoundingClientRect();
+    const x = point.clientX - rect.left;
+    const y = point.clientY - rect.top;
+
+    // Hit threat bubble / cursor first
+    for (const agent of agents) {
+      if (agent.mode !== "threaten") continue;
+      const dx = x - agent.x;
+      const dy = y - agent.y;
+      const hitCursor = dx * dx + dy * dy < 48 * 48;
+      const b = agent.bubble.getBoundingClientRect();
+      const hitBubble =
+        point.clientX >= b.left - 8 &&
+        point.clientX <= b.right + 8 &&
+        point.clientY >= b.top - 8 &&
+        point.clientY <= b.bottom + 8;
+      if (hitCursor || hitBubble) {
+        cancelThreat(agent);
+        return;
+      }
+      // also allow tapping the threatened file
+      if (agent.target) {
+        const fx = agent.target.x;
+        const fy = agent.target.y;
+        if ((x - fx) * (x - fx) + (y - fy) * (y - fy) < 55 * 55) {
+          cancelThreat(agent);
+          return;
+        }
+      }
+    }
+  }
+
+  function tick(now) {
+    if (state !== "game") return;
+    const elapsed = now - startTs;
+    const dt = Math.min(40, now - lastTs);
+    lastTs = now;
+
+    updateHud(elapsed);
+
+    if (!multiOn && elapsed >= 15000) {
+      multiOn = true;
+      multiEl.style.display = "block";
+      agents.push(createAgent(1));
+      toast("已为你启用多智能体加速");
+    }
+
+    if (elapsed >= 60000) {
+      survived = true;
+      endGame(true);
+      return;
+    }
+
+    for (const agent of agents) {
+      // movement
+      const speed = agent.mode === "approach" ? 0.45 : 0.22;
+      const dx = agent.tx - agent.x;
+      const dy = agent.ty - agent.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist > 2) {
+        agent.x += (dx / dist) * speed * dt;
+        agent.y += (dy / dist) * speed * dt;
+      } else {
+        agent.x = agent.tx;
+        agent.y = agent.ty;
+        if (agent.mode === "approach" && agent.target) {
+          agent.mode = "threaten";
+          agent.threatenT = 0;
+          agent.target.el.classList.add("threatened");
+          agent.el.classList.add("threat");
+        } else if (agent.mode === "wander" && now > agent.safeUntil) {
+          // pick next wander point occasionally
+        }
+      }
+
+      agent.el.style.left = agent.x + "px";
+      agent.el.style.top = agent.y + "px";
+
+      if (agent.mode === "threaten" && agent.target) {
+        agent.threatenT += dt;
+        const p = Math.min(1, agent.threatenT / agent.threatenDur);
+        setBubble(
+          agent,
+          "danger",
+          `rm -rf ${agent.target.name}<div class="progress"><i style="width:${(p * 100).toFixed(1)}%"></i></div>`
+        );
+        if (p >= 1) deleteFile(agent);
+      } else if (now < agent.safeUntil) {
+        agent.bubble.style.left = agent.x + "px";
+        agent.bubble.style.top = Math.max(28, agent.y - 8) + "px";
+      } else if (agent.mode === "wander") {
+        if (now >= agent.nextActionAt) {
+          // 55% threat, 45% idle chatter after early game
+          const roll = Math.random();
+          if (roll < 0.58) {
+            startThreat(agent, now, elapsed);
+          } else {
+            const line = SAFE_LINES[Math.floor(Math.random() * SAFE_LINES.length)];
+            setBubble(agent, "safe", line);
+            agent.safeUntil = now + 1100;
+            // wander elsewhere
+            agent.tx = 40 + Math.random() * (desktop.clientWidth - 80);
+            agent.ty = 50 + Math.random() * (desktop.clientHeight - 100);
+            agent.nextActionAt = now + threatenInterval(elapsed) * (0.55 + Math.random() * 0.4);
+          }
+        } else if (now > agent.safeUntil) {
+          hideBubble(agent);
+          // keep slowly drifting when idle
+          if (Math.hypot(agent.tx - agent.x, agent.ty - agent.y) < 3) {
+            agent.tx = 40 + Math.random() * (desktop.clientWidth - 80);
+            agent.ty = 50 + Math.random() * (desktop.clientHeight - 100);
+          }
+        }
+      } else {
+        // approaching: small danger preview
+        if (agent.target) {
+          setBubble(agent, "danger", "准备执行危险操作…");
+        }
+      }
+    }
+
+    raf = requestAnimationFrame(tick);
+  }
+
+  function shareText(elapsedMs, win) {
+    const left = aliveFiles().length;
+    const sec = (elapsedMs / 1000).toFixed(1);
+    const icons = Array.from({ length: 10 }, (_, i) => (i < left ? "📁" : "🔥")).join("");
+    if (win) {
+      return `我在全权限模式下撑过了 60 秒，守住了 ${left}/10 个文件\n${icons}\n${names.boss} 打来了电话。你的生产数据库还好吗`;
+    }
+    return `我在全权限模式下幸存 ${sec} 秒，守住了 ${left}/10 个文件\n${icons}\n你的生产数据库还好吗`;
+  }
+
+  function endGame(win) {
+    if (state !== "game") return;
+    state = "end";
+    cancelAnimationFrame(raf);
+    const elapsed = performance.now() - startTs;
+    showScreen("end");
+    $("endTitle").textContent = win ? "电话接通了" : "数据没了";
+    $("endTime").textContent = (elapsed / 1000).toFixed(1) + "s";
+    const left = aliveFiles().length;
+    $("endResult").textContent = win
+      ? `你撑过了全权限模式，守住 ${left}/10 个文件。`
+      : `失误 ${livesLost} 次。还剩 ${left}/10 个文件。`;
+    $("winNote").textContent = names.boss + " 打来了电话。";
+    $("winNote").hidden = !win;
+    const text = shareText(elapsed, win);
+    $("shareBox").textContent = text;
+    $("copyBtn").dataset.text = text;
+  }
+
+  function clearDesktopDynamic() {
+    desktop.querySelectorAll(".file, .cursor, .bubble").forEach((n) => n.remove());
+    multiEl.style.display = "none";
+    toastEl.classList.remove("show");
+  }
+
+  function startGame() {
+    readNames();
+    clearDesktopDynamic();
+    livesLost = 0;
+    survived = false;
+    multiOn = false;
+    state = "game";
+    showScreen("game");
+    layoutFiles();
+    agents = [createAgent(0)];
+    startTs = performance.now();
+    lastTs = startTs;
+    agents[0].tx = desktop.clientWidth * 0.55;
+    agents[0].ty = desktop.clientHeight * 0.4;
+    agents[0].nextActionAt = startTs + 1200;
+    updateHud(0);
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(tick);
+  }
+
+  $("startBtn").addEventListener("click", startGame);
+  $("retryBtn").addEventListener("click", startGame);
+  $("copyBtn").addEventListener("click", async () => {
+    const text = $("copyBtn").dataset.text || $("shareBox").textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      $("copyBtn").textContent = "已复制";
+      setTimeout(() => ($("copyBtn").textContent = "复制晒分"), 1200);
+    } catch (err) {
+      // fallback
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      $("copyBtn").textContent = "已复制";
+      setTimeout(() => ($("copyBtn").textContent = "复制晒分"), 1200);
+    }
+  });
+
+  desktop.addEventListener("touchstart", onPointer, { passive: false });
+  desktop.addEventListener("mousedown", onPointer);
+  restoreNames();
+
+  // Prevent page scroll bounce on iOS while playing
+  document.addEventListener("touchmove", (e) => {
+    if (state === "game") e.preventDefault();
+  }, { passive: false });
+})();
+</script>
+</body>
+</html>
