@@ -562,7 +562,20 @@
   }
 
   function pickTarget(agent) {
-    const free = aliveFiles().filter((f) => !f.threatenBy || f.threatenBy === agent.id);
+    // threatenBy 用 == null：agent id 为 0 时 !threatenBy 会误判为空闲
+    const claimed = new Set(
+      agents
+        .filter(
+          (a) =>
+            a.id !== agent.id &&
+            a.target &&
+            (a.mode === "approach" || a.mode === "threaten")
+        )
+        .map((a) => a.target)
+    );
+    const free = aliveFiles().filter(
+      (f) => !claimed.has(f) && (f.threatenBy == null || f.threatenBy === agent.id)
+    );
     if (!free.length) return null;
     return free[Math.floor(Math.random() * free.length)];
   }
@@ -668,12 +681,19 @@
         cancelThreat(agent);
         return;
       }
-      // also allow tapping the threatened file
+      // also allow tapping the threatened file — cancel every agent on that file
       if (agent.target) {
         const fx = agent.target.x;
         const fy = agent.target.y;
         if ((x - fx) * (x - fx) + (y - fy) * (y - fy) < 55 * 55) {
-          cancelThreat(agent);
+          const file = agent.target;
+          agents
+            .filter(
+              (a) =>
+                a.target === file &&
+                (a.mode === "approach" || a.mode === "threaten")
+            )
+            .forEach(cancelThreat);
           return;
         }
       }
@@ -702,25 +722,27 @@
     }
 
     for (const agent of agents) {
-      // movement
+      // movement: clamp step so we never overshoot (overshoot + reverse = jitter)
       const speed = agent.mode === "approach" ? 0.45 : 0.22;
       const dx = agent.tx - agent.x;
       const dy = agent.ty - agent.y;
-      const dist = Math.hypot(dx, dy) || 1;
-      if (dist > 2) {
-        agent.x += (dx / dist) * speed * dt;
-        agent.y += (dy / dist) * speed * dt;
-      } else {
+      const dist = Math.hypot(dx, dy);
+      const step = speed * dt;
+      let arrived = false;
+      if (dist <= 0.5 || dist <= step) {
         agent.x = agent.tx;
         agent.y = agent.ty;
-        if (agent.mode === "approach" && agent.target) {
-          agent.mode = "threaten";
-          agent.threatenT = 0;
-          agent.target.el.classList.add("threatened");
-          agent.el.classList.add("threat");
-        } else if (agent.mode === "wander" && now > agent.safeUntil) {
-          // pick next wander point occasionally
-        }
+        arrived = true;
+      } else {
+        agent.x += (dx / dist) * step;
+        agent.y += (dy / dist) * step;
+      }
+
+      if (arrived && agent.mode === "approach" && agent.target) {
+        agent.mode = "threaten";
+        agent.threatenT = 0;
+        agent.target.el.classList.add("threatened");
+        agent.el.classList.add("threat");
       }
 
       agent.el.style.left = agent.x + "px";
@@ -755,8 +777,8 @@
           }
         } else if (now > agent.safeUntil) {
           hideBubble(agent);
-          // keep slowly drifting when idle
-          if (Math.hypot(agent.tx - agent.x, agent.ty - agent.y) < 3) {
+          // idle drift: retarget only once on arrival, not every frame
+          if (arrived) {
             agent.tx = 40 + Math.random() * (desktop.clientWidth - 80);
             agent.ty = 50 + Math.random() * (desktop.clientHeight - 100);
           }
